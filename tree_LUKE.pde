@@ -1,3 +1,10 @@
+// drag racing christmas tree controller
+// Luke J Orland
+// Thu Jul 15 23:00:43 EDT 2010
+
+#define LED_ON  HIGH
+#define LED_OFF LOW
+
 enum
 {
   RACE_STAGE_IDLE,
@@ -58,6 +65,7 @@ enum
 #define PIN_OUT_R_GREEN     9
 #define PIN_OUT_R_RED      11
 
+// Mapping of Leds to output pins.
 unsigned int treeLedPins[NUM_TREE_LEDS]=
 {
   PIN_OUT_L_STAGE,
@@ -146,11 +154,11 @@ void loop()
     {
       if ( i == onLedLeft || i == onLedRight )
       {
-        digitalWrite(treeLedPins[i],HIGH);
+        digitalWrite(treeLedPins[i],LED_ON);
       }
       else
       {
-        digitalWrite(treeLedPins[i],LOW);
+        digitalWrite(treeLedPins[i],LED_OFF);
       }
     }
     if (++countdownStep >= NUM_COUNTDOWN_STEPS)
