@@ -7,10 +7,33 @@
 
 enum
 {
-  RACE_STAGE_IDLE,
-  RACE_STAGE_COUNTDOWN,
-  RACE_STAGE_RACING,
-  RACE_STAGE_POSTRACE,
+  RACE_STATE_READY,     // Red Light on, waiting for ready switch from race
+                        // official.
+                        // When ready switch gets pressed, turn on all lights
+                        // for one second.
+
+  RACE_STATE_STAGE_LIGHTS, // Watch inputs for gas pedals indicating each racer
+                           // is ready.
+
+  RACE_STATE_COUNTDOWN, // Manage christmas tree countdown,
+                        // watch gas pedals for false start. If racer false
+                        // starts, her red light turns on and her gas pedal
+                        // does not start car.
+                        // --> RACE_STATE_RACING
+
+                        // If both racers false start,
+                        // --> RACE_STATE_READY
+
+  RACE_STATE_RACING,    // Watch gas pedals to throw relay (start vehicle)
+                        // for each racer.
+                        // Watch for both racers to finish or kill switch.
+                        // --> RACE_STATE_POSTRACE
+
+  RACE_STATE_POSTRACE,  // Red Light on, waiting for ready switch from race
+                        // official. When ready switch is pressed, flash all 
+                        // lights momentarily, the turn them all off.
+                        // --> RACE_STATE_READY
+  NUM_RACE_STATES,
 };
 
 enum
@@ -41,29 +64,30 @@ enum
   NUM_TREE_LEDS,
 };
 
-/*** inputs ***/
+// Input pins
+#define PIN_IN_L_GAS          3
+#define PIN_IN_L_END          4
+#define PIN_IN_R_GAS          5
+#define PIN_IN_R_END          6
+#define PIN_IN_PRO_TREE       7
 
-#define PIN_IN_L_GAS 14
-#define PIN_IN_L_END 15
-#define PIN_IN_R_GAS 16
-#define PIN_IN_R_END 17
-#define PIN_IN_PRO_TREE  18
+// Output pins
+#define PIN_OUT_L_STAGE       8
+#define PIN_OUT_L_YELLOW_1    9
+#define PIN_OUT_L_YELLOW_2    10
+#define PIN_OUT_L_YELLOW_3    11 
+#define PIN_OUT_L_GREEN       12
+#define PIN_OUT_L_RED         13
 
-/*** outputs ***/
+#define PIN_OUT_R_STAGE       14
+#define PIN_OUT_R_YELLOW_1    15
+#define PIN_OUT_R_YELLOW_2    16
+#define PIN_OUT_R_YELLOW_3    17
+#define PIN_OUT_R_GREEN       18
+#define PIN_OUT_R_RED         19
 
-#define PIN_OUT_L_STAGE    12
-#define PIN_OUT_L_YELLOW_1  2
-#define PIN_OUT_L_YELLOW_2  4
-#define PIN_OUT_L_YELLOW_3  6 
-#define PIN_OUT_L_GREEN     8
-#define PIN_OUT_L_RED      10
-
-#define PIN_OUT_R_STAGE    13
-#define PIN_OUT_R_YELLOW_1  3
-#define PIN_OUT_R_YELLOW_2  5
-#define PIN_OUT_R_YELLOW_3  7
-#define PIN_OUT_R_GREEN     9
-#define PIN_OUT_R_RED      11
+#define PIN_OUT_L_POWERTOOL   20
+#define PIN_OUT_R_POWERTOOL   21
 
 // Mapping of Leds to output pins.
 unsigned int treeLedPins[NUM_TREE_LEDS]=
@@ -111,7 +135,19 @@ void setup()
 
 #define PERIOD_FOURTHENTHS_SECS (1000 * 4 / 10)
 
-unsigned long sysTime = millis();
+unsigned long sysTime;
+
+void DoStateIdle()
+{
+}
+
+void DoStateCountdown()
+{
+}
+
+void DoStateRacing()
+{
+}
 
 void loop()
 {                
