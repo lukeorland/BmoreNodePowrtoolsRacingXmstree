@@ -46,6 +46,26 @@ enum
 
 enum
 {
+  INPUT_L_GAS,      // Momentary On foot switch
+  INPUT_R_GAS,      // Momentary On foot switch
+
+  INPUT_L_END,      // IR phototransistor to detect
+                    // IR beam broken as racer comes
+                    // through finish line
+  INPUT_R_END,
+
+  INPUT_READY,      // Normally closed momentary switch
+                    // to manually advance the state 
+                    // machine.
+  
+  INPUT_PRO_TREE,   // Not yet implemented.
+                    // When high, "Pro Tree"-style countdown
+                    // When low, "Competion Tree"-style countdown
+  NUM_INPUTS,
+};
+
+enum
+{
   LED_L_STAGE,
   LED_L_YELLOW_1,
   LED_L_YELLOW_2,
@@ -68,31 +88,51 @@ enum
 #define POWERTOOL_OFF LOW
 
 // Input pins
-#define PIN_IN_L_GAS          3
-#define PIN_IN_L_END          4
-#define PIN_IN_R_GAS          5
-#define PIN_IN_R_END          6
-#define PIN_IN_PRO_TREE       7
+#define PIN_IN_L_GAS         3
+#define PIN_IN_L_END         4
+#define PIN_IN_R_GAS         5
+#define PIN_IN_R_END         6
+#define PIN_IN_READY         7
+#define PIN_IN_PRO_TREE      8 // No functionality yet.
 
 // Output pins
-#define PIN_OUT_L_STAGE       8
-#define PIN_OUT_L_YELLOW_1    9
-#define PIN_OUT_L_YELLOW_2    10
-#define PIN_OUT_L_YELLOW_3    11 
-#define PIN_OUT_L_GREEN       12
-#define PIN_OUT_L_RED         13
+#define PIN_OUT_L_STAGE      9
+#define PIN_OUT_L_YELLOW_1   10
+#define PIN_OUT_L_YELLOW_2   11
+#define PIN_OUT_L_YELLOW_3   12 
+#define PIN_OUT_L_GREEN      13
+#define PIN_OUT_L_RED        14
 
-#define PIN_OUT_R_STAGE       14
-#define PIN_OUT_R_YELLOW_1    15
-#define PIN_OUT_R_YELLOW_2    16
-#define PIN_OUT_R_YELLOW_3    17
-#define PIN_OUT_R_GREEN       18
-#define PIN_OUT_R_RED         19
+#define PIN_OUT_R_STAGE      15
+#define PIN_OUT_R_YELLOW_1   16
+#define PIN_OUT_R_YELLOW_2   17
+#define PIN_OUT_R_YELLOW_3   18
+#define PIN_OUT_R_GREEN      19
+#define PIN_OUT_R_RED        20
 
-#define PIN_OUT_L_POWERTOOL   20
-#define PIN_OUT_R_POWERTOOL   21
+#define PIN_OUT_L_POWERTOOL  21
+#define PIN_OUT_R_POWERTOOL  22
 
-// Mapping of Leds to output pins.
+// Mapping of input pins to Input indices.
+unsigned int inputPins[NUM_INPUTS]=
+{
+  PIN_IN_L_GAS,
+  PIN_IN_L_END,
+  PIN_IN_R_GAS,
+  PIN_IN_R_END,
+  PIN_IN_READY,
+  PIN_IN_PRO_TREE,
+};
+
+int inputStateFlags; // This variable stores the input
+                     // states in a bit field
+                     // representation using the 
+                     // Input indices as bit positions.
+
+int newInputFlags;   // Set the bit for newly engaged 
+                     // inputs.
+
+// Mapping of output pins to Led indices.
 unsigned int treeLedPins[NUM_TREE_LEDS]=
 {
   PIN_OUT_L_STAGE,
@@ -114,69 +154,58 @@ void setup()
   Serial.begin(9600);
 
   // initialize the output pins
-  pinMode(PIN_OUT_L_STAGE, OUTPUT);     
-  pinMode(PIN_OUT_L_YELLOW_1, OUTPUT);     
-  pinMode(PIN_OUT_L_YELLOW_2, OUTPUT);     
-  pinMode(PIN_OUT_L_YELLOW_3, OUTPUT);     
-  pinMode(PIN_OUT_L_GREEN, OUTPUT);     
-  pinMode(PIN_OUT_L_RED, OUTPUT);     
-  pinMode(PIN_OUT_R_STAGE, OUTPUT);     
-  pinMode(PIN_OUT_R_YELLOW_1, OUTPUT);     
-  pinMode(PIN_OUT_R_YELLOW_2, OUTPUT);     
-  pinMode(PIN_OUT_R_YELLOW_3, OUTPUT);     
-  pinMode(PIN_OUT_R_GREEN, OUTPUT);     
-  pinMode(PIN_OUT_R_RED, OUTPUT);     
-  pinMode(PIN_OUT_L_POWERTOOL, OUTPUT);     
-  pinMode(PIN_OUT_R_POWERTOOL, OUTPUT);     
-  
   // Turn everything off.
   for (int i = 0; i < NUM_TREE_LEDS; i++)
   {
+    pinMode(treeLedPins[i],OUTPUT);
     digitalWrite(treeLedPins[i],LED_OFF);
   }
+
+  pinMode(PIN_OUT_L_POWERTOOL, OUTPUT);     
+  pinMode(PIN_OUT_R_POWERTOOL, OUTPUT);     
 
   digitalWrite(PIN_OUT_L_POWERTOOL,POWERTOOL_OFF);
   digitalWrite(PIN_OUT_R_POWERTOOL,POWERTOOL_OFF);
 
   // Initialize the input pins.
-  pinMode(PIN_IN_L_GAS, INPUT);
-  pinMode(PIN_IN_L_END, INPUT);
-  pinMode(PIN_IN_R_GAS, INPUT);
-  pinMode(PIN_IN_R_END, INPUT);
-  pinMode(PIN_IN_PRO_TREE, INPUT);
-
   // Enable internal pullup resistors.
-  digitalWrite(PIN_IN_L_GAS,HIGH);
-  digitalWrite(PIN_IN_L_END,HIGH);
-  digitalWrite(PIN_IN_R_GAS,HIGH);
-  digitalWrite(PIN_IN_R_END,HIGH);
-  digitalWrite(PIN_IN_PRO_TREE,HIGH);
+  for (int i = 0; i < NUM_TREE_LEDS; i++)
+  {
+    pinMode(inputPins[i], INPUT);
+    digitalWrite(inputPins[i],LED_OFF);
+  }
 }
 
-#define PERIOD_FOURTHENTHS_SECS (1000 * 4 / 10)
+#define PERIOD_400_MILLIS (1000 * 4 / 10)
+#define PERIOD_SWITCH_DEBOUNCE (1000 / 20)
 
 unsigned long sysTime;
 
-void DoStateIdle()
+// State machine definitions for race stages
+
+unsigned int raceState;
+
+void SetNewState(int newState)
+{
+  raceState = newState;
+  raceSubState = 0;
+}
+
+void DoStateReady()
+{
+}
+
+void DoStateStageLights()
 {
 }
 
 void DoStateCountdown()
 {
-}
-
-void DoStateRacing()
-{
-}
-
-void loop()
-{                
-  sysTime = millis();
   static unsigned long lastTime = 0;
   static unsigned int countdownStep = COUNTDOWN_STEP_STAGE;
   unsigned int onLedLeft, onLedRight;
   
-  if (sysTime >= lastTime + PERIOD_FOURTHENTHS_SECS)
+  if (sysTime >= lastTime + PERIOD_400_MILLIS)
   {
     lastTime = sysTime;
     switch (countdownStep)
@@ -220,6 +249,73 @@ void loop()
     if (++countdownStep >= NUM_COUNTDOWN_STEPS)
     {
       countdownStep = COUNTDOWN_STEP_STAGE;
+    }
+  }
+}
+
+void DoStateRacing()
+{
+}
+
+void DoStatePostrace()
+{
+  // If the ready switch just got newly pressed
+  if ( newInputFlags & (1 << INPUT_READY) )
+  {
+    SetNewState(RACE_STATE_READY);
+  }
+}
+
+void loop()
+{                
+  static long lastSwitchTime;
+  static int lastInputStateFlags;
+
+  raceState = RACE_STATE_POSTRACE;
+
+  digitalWrite(PIN_OUT_L_RED, LED_ON);     
+  digitalWrite(PIN_OUT_R_RED, LED_ON);     
+
+  while (true)
+  {
+    sysTime = millis();
+
+    // Check switch inputs
+    inputStateFlags = 0;
+    if (sysTime >= lastSwitchTime + PERIOD_SWITCH_DEBOUNCE)
+    {
+      for (int i = 0; i < NUM_INPUTS; i++)
+      {
+        if (digitalRead(inputPins[i]) == LOW)
+        {
+          lastInputStateFlags = inputStateFlags;
+          // LOW state indicates switch is engaged,
+          // so set the flag.
+          inputStateFlags |= (1 << i);
+        }
+      }
+    }
+
+    newInputFlags = inputStateFlags & (lastInputStateFlags ^ inputStateFlags);
+
+    // State machine
+    switch (raceState)
+    {
+      case RACE_STATE_READY:
+        DoStateReady();
+        break;
+      case RACE_STATE_STAGE_LIGHTS:
+        DoStateStageLights();
+        break;
+      case RACE_STATE_COUNTDOWN:
+        DoStateCountdown();
+        break;
+      case RACE_STATE_RACING:
+        DoStateRacing();
+        break;
+      case RACE_STATE_POSTRACE:
+        DoStatePostrace();
+        break;
     }
   }
 }
