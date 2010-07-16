@@ -2,15 +2,20 @@
 // Luke J Orland
 // Thu Jul 15 23:00:43 EDT 2010
 
+// All times values are defined as quantity of milliseconds.
+
 enum
 {
-  RACE_STATE_READY,     // Red Light on, waiting for ready switch from race
-                        // official.
-                        // When ready switch gets pressed, turn on all lights
-                        // for one second.
+  RACE_STATE_READY,     // Waiting for both racers to check in by pressing 
+                        // the pedal momentarily. When both have pressed
+                        // their pedal switch, stage lights turn on
+                        // --> RACE_STATE_STAGE_LIGHTS
 
-  RACE_STATE_STAGE_LIGHTS, // Watch inputs for gas pedals indicating each racer
-                           // is ready.
+  RACE_STATE_STAGE_LIGHTS, // Leave the stage lights on for a random amount of
+                           // time between 5 to 10 seconds. When time is up,
+                           // start the countdown.
+                           // --> RACE_STATE_COUNTDOWN
+
 
   RACE_STATE_COUNTDOWN, // Manage christmas tree countdown,
                         // watch gas pedals for false start. If racer false
@@ -149,41 +154,24 @@ unsigned int treeLedPins[NUM_TREE_LEDS]=
   PIN_OUT_R_RED,
 };
 
-void setup()
-{                
-  Serial.begin(9600);
-
-  // initialize the output pins
-  // Turn everything off.
-  for (int i = 0; i < NUM_TREE_LEDS; i++)
-  {
-    pinMode(treeLedPins[i],OUTPUT);
-    digitalWrite(treeLedPins[i],LED_OFF);
-  }
-
-  pinMode(PIN_OUT_L_POWERTOOL, OUTPUT);     
-  pinMode(PIN_OUT_R_POWERTOOL, OUTPUT);     
-
-  digitalWrite(PIN_OUT_L_POWERTOOL,POWERTOOL_OFF);
-  digitalWrite(PIN_OUT_R_POWERTOOL,POWERTOOL_OFF);
-
-  // Initialize the input pins.
-  // Enable internal pullup resistors.
-  for (int i = 0; i < NUM_TREE_LEDS; i++)
-  {
-    pinMode(inputPins[i], INPUT);
-    digitalWrite(inputPins[i],LED_OFF);
-  }
-}
-
 #define PERIOD_400_MILLIS (1000 * 4 / 10)
 #define PERIOD_SWITCH_DEBOUNCE (1000 / 20)
 
 unsigned long sysTime;
 
+void KillLeds()
+{
+  for (int i = 0; i < NUM_TREE_LEDS; i++)
+  {
+    digitalWrite(treeLedPins[i],LED_OFF);
+  }
+}
+
 // State machine definitions for race stages
 
-unsigned int raceState;
+unsigned int raceState, raceSubState;
+boolean isLeftPowertoolActive, isRightPowertoolActive;
+unsigned long raceStartTime;
 
 void SetNewState(int newState)
 {
@@ -251,10 +239,144 @@ void DoStateCountdown()
       countdownStep = COUNTDOWN_STEP_STAGE;
     }
   }
+  // If either false started, set corresponding isLeftPowertoolActive or
+  // isRightPowertoolActive to false.
+  // if both are false, go to RACE_STATE_READY
+  // otherwise, go to RACE_STATE_RACING.
 }
 
 void DoStateRacing()
 {
+  static boolean hasLeftCompleted, hasRightCompleted;
+  static boolean hasLeftStarted, hasRightStarted;
+  static unsigned long reactionTimeLeft, reactionTimeRight;
+  static unsigned long completionTimeLeft, completionTimeRight;
+  char * report;
+
+  if (raceSubState == 0)
+  {
+    hasLeftCompleted = false;
+    hasRightCompleted = false;
+    raceSubState++;
+  }
+
+  if (raceSubState == 1)
+  {
+    // Kill the Race if the ready switch is pressed to call
+    // the race early.
+    if (newInputFlags & (1 << INPUT_READY))
+    {
+      // Red lights
+      digitalWrite(treeLedPins[LED_R_GREEN], LED_OFF);
+      digitalWrite(treeLedPins[LED_R_RED], LED_ON);
+      digitalWrite(treeLedPins[LED_L_GREEN], LED_OFF);
+      digitalWrite(treeLedPins[LED_L_RED], LED_ON);
+
+      // Kill powertools
+      digitalWrite(PIN_OUT_L_POWERTOOL, POWERTOOL_OFF);
+      digitalWrite(PIN_OUT_R_POWERTOOL, POWERTOOL_OFF);
+      SetNewState(RACE_STATE_POSTRACE);
+      return;
+    }
+    // Handle left and right racers separately
+    if (isLeftPowertoolActive && !hasLeftCompleted)
+    {
+      // Pedal switch engaged?
+      if (inputStateFlags & (1 << INPUT_L_GAS))
+      {
+        if (!hasLeftStarted)
+        {
+          hasLeftStarted = true;
+          // record the Left's reaction time
+          // once it finally gets started.
+          reactionTimeLeft = sysTime - raceStartTime;
+        }
+
+        // Pedal is engaged, so turn on powertool.
+        digitalWrite(PIN_OUT_L_POWERTOOL,POWERTOOL_ON);
+
+        // Finish line reached?
+        if (inputStateFlags & (1 << INPUT_L_END))
+        {
+          // Stop the left powertool.
+          digitalWrite(PIN_OUT_L_POWERTOOL,POWERTOOL_OFF);
+          hasLeftCompleted = true; // deactivate this tool.
+          // Record finish time.
+          completionTimeLeft = sysTime - raceStartTime;
+          
+          // Turn Left lights from green to red.
+          digitalWrite(treeLedPins[LED_L_GREEN],LED_OFF);
+          digitalWrite(treeLedPins[LED_L_RED],LED_ON);
+        }
+      }
+      else
+      {
+        // Turn off powertool if pedal switch is not closed.
+        digitalWrite(PIN_OUT_L_POWERTOOL,POWERTOOL_OFF);
+      }
+    }
+
+    // Right's turn
+    if (isRightPowertoolActive && !hasRightCompleted)
+    {
+      // Pedal switch engaged?
+      if (inputStateFlags & (1 << INPUT_R_GAS))
+      {
+        if (!hasRightStarted)
+        {
+          hasRightStarted = true;
+          // record the Right's reaction time
+          // once it finally gets started.
+          reactionTimeRight = sysTime - raceStartTime;
+        }
+
+        // Pedal is engaged, so turn on powertool.
+        digitalWrite(PIN_OUT_R_POWERTOOL,POWERTOOL_ON);
+
+        // Finish line reached?
+        if (inputStateFlags & (1 << INPUT_R_END))
+        {
+          // Stop the powertool.
+          digitalWrite(PIN_OUT_R_POWERTOOL,POWERTOOL_OFF);
+          hasRightCompleted = true; // deactivate this tool.
+          // Record finish time.
+          completionTimeRight = sysTime - raceStartTime;
+          
+          // Turn Right lights from green to red.
+          digitalWrite(treeLedPins[LED_R_GREEN],LED_OFF);
+          digitalWrite(treeLedPins[LED_R_RED],LED_ON);
+        }
+      }
+      else
+      {
+        // Turn off powertool if pedal switch is not closed.
+        digitalWrite(PIN_OUT_R_POWERTOOL,POWERTOOL_OFF);
+      }
+    }
+
+    // Both tools done/inactive?
+    if ((!isLeftPowertoolActive || hasLeftCompleted)
+        && (!isRightPowertoolActive || hasRightCompleted))
+    {
+      raceState++;
+    }
+  }
+
+  if (raceSubState == 2)
+  {
+    if (isLeftPowertoolActive && hasLeftCompleted)
+    {
+      sprintf(report, "\nThe LEFT racer had a reaction time of %i ms and finished in %i\n", reactionTimeLeft, completionTimeLeft);
+      Serial.print(report);
+    }
+    if (isRightPowertoolActive && hasRightCompleted)
+    {
+      sprintf(report, "The RIGHT racer had a reaction time of %i ms and finished in %i", reactionTimeRight, completionTimeRight);
+      Serial.print(report);
+    }
+    // Leave both left and right red lights and go to RACE_STATE_POSTRACE.
+    SetNewState(RACE_STATE_POSTRACE);
+  }
 }
 
 void DoStatePostrace()
@@ -263,6 +385,34 @@ void DoStatePostrace()
   if ( newInputFlags & (1 << INPUT_READY) )
   {
     SetNewState(RACE_STATE_READY);
+    KillLeds();
+  }
+}
+
+void setup()
+{                
+  Serial.begin(9600);
+
+  // initialize the output pins
+  // Turn everything off.
+  for (int i = 0; i < NUM_TREE_LEDS; i++)
+  {
+    pinMode(treeLedPins[i],OUTPUT);
+  }
+  KillLeds();
+
+  pinMode(PIN_OUT_L_POWERTOOL, OUTPUT);     
+  pinMode(PIN_OUT_R_POWERTOOL, OUTPUT);     
+
+  digitalWrite(PIN_OUT_L_POWERTOOL,POWERTOOL_OFF);
+  digitalWrite(PIN_OUT_R_POWERTOOL,POWERTOOL_OFF);
+
+  // Initialize the input pins.
+  // Enable internal pullup resistors.
+  for (int i = 0; i < NUM_TREE_LEDS; i++)
+  {
+    pinMode(inputPins[i], INPUT);
+    digitalWrite(inputPins[i],LED_OFF);
   }
 }
 
@@ -297,6 +447,8 @@ void loop()
     }
 
     newInputFlags = inputStateFlags & (lastInputStateFlags ^ inputStateFlags);
+
+    random(); // randomize
 
     // State machine
     switch (raceState)
