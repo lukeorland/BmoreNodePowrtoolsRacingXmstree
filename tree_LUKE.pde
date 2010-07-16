@@ -16,7 +16,6 @@ enum
                            // start the countdown.
                            // --> RACE_STATE_COUNTDOWN
 
-
   RACE_STATE_COUNTDOWN, // Manage christmas tree countdown,
                         // watch gas pedals for false start. If racer false
                         // starts, her red light turns on and her gas pedal
@@ -181,68 +180,187 @@ void SetNewState(int newState)
 
 void DoStateReady()
 {
+  static unsigned long entryTime;
+  static boolean leftRacerChimedIn, rightRacerChimedIn;
+
+  if (raceSubState == 0)
+  {
+    entryTime = sysTime;
+    leftRacerChimedIn = false;
+    rightRacerChimedIn = false;
+
+    // Turn on all leds for one second
+    for (int i = 0; i < NUM_TREE_LEDS; i++)
+    {
+      digitalWrite(treeLedPins[i],LED_ON);
+    }
+    raceSubState++;
+  }
+
+  if (raceSubState == 1)
+  {
+    // 1000 ms later, turn all the lights off.
+    if ( sysTime >= entryTime + 1000 )
+    {
+      KillLeds();
+    }
+    raceSubState++;
+  }
+
+  if (raceSubState == 2)
+  {
+    // When each racer hits the pedal turn on her stage lights.
+    if (newInputFlags & (1 << INPUT_L_GAS))
+    {
+      leftRacerChimedIn = true;
+      digitalWrite(treeLedPins[LED_L_STAGE],LED_ON);
+    }
+    if (newInputFlags & (1 << INPUT_R_GAS))
+    {
+      rightRacerChimedIn = true;
+      digitalWrite(treeLedPins[LED_R_STAGE],LED_ON);
+    }
+    if (leftRacerChimedIn && rightRacerChimedIn)
+    {
+      SetNewState(RACE_STATE_STAGE_LIGHTS);
+    }
+  }
 }
 
 void DoStateStageLights()
 {
+  static unsigned long entryTime;
+  static unsigned long randPauseTime;
+
+  if (raceSubState == 0)
+  {
+    entryTime = sysTime;
+    // 3 to 6 seconds of pause time
+    randPauseTime = random(3000, 6000);
+    raceSubState++;
+  }
+
+  if (raceSubState == 1)
+  {
+    // Kill the Race if the ready switch is pressed to call
+    // the race early.
+    if (newInputFlags & (1 << INPUT_READY))
+    {
+      // Red lights
+      KillLeds();
+      digitalWrite(treeLedPins[LED_R_RED], LED_ON);
+      digitalWrite(treeLedPins[LED_L_RED], LED_ON);
+
+      SetNewState(RACE_STATE_POSTRACE);
+      return;
+    }
+    if (sysTime >= entryTime + randPauseTime)
+    {
+      // pause time has expired. turn off staging lights.
+      digitalWrite(treeLedPins[LED_L_STAGE],LED_OFF);
+      digitalWrite(treeLedPins[LED_R_STAGE],LED_OFF);
+      SetNewState(RACE_STATE_COUNTDOWN);
+    }
+  }
 }
 
 void DoStateCountdown()
 {
-  static unsigned long lastTime = 0;
-  static unsigned int countdownStep = COUNTDOWN_STEP_STAGE;
+  static unsigned long lastTime;
+  static unsigned int countdownStep;
   unsigned int onLedLeft, onLedRight;
   
-  if (sysTime >= lastTime + PERIOD_400_MILLIS)
+  if (raceSubState == 0)
   {
     lastTime = sysTime;
-    switch (countdownStep)
+
+    isLeftPowertoolActive = true;
+    isRightPowertoolActive = true;
+
+    digitalWrite(treeLedPins[LED_L_YELLOW_1],LED_ON);
+    digitalWrite(treeLedPins[LED_R_YELLOW_1],LED_ON);
+
+    countdownStep = COUNTDOWN_STEP_YELLOW_2;
+    raceSubState++;
+  }
+
+  if (raceSubState == 1)
+  {
+    // If either racer false starts, set corresponding
+    // isLeftPowertoolActive or isRightPowertoolActive to false.
+    if (inputStateFlags & (1 << INPUT_L_GAS))
     {
-      case COUNTDOWN_STEP_STAGE:
-        onLedLeft = LED_L_STAGE;
-        onLedRight = LED_R_STAGE;
-        break;
-      case COUNTDOWN_STEP_YELLOW_1:
-        onLedLeft = LED_L_YELLOW_1;
-        onLedRight = LED_R_YELLOW_1;
-        break;
-      case COUNTDOWN_STEP_YELLOW_2:
-        onLedLeft = LED_L_YELLOW_2;
-        onLedRight = LED_R_YELLOW_2;
-        break;
-      case COUNTDOWN_STEP_YELLOW_3:
-        onLedLeft = LED_L_YELLOW_3;
-        onLedRight = LED_R_YELLOW_3;
-        break;
-      case COUNTDOWN_STEP_GREEN:
-        onLedLeft = LED_L_GREEN;
-        onLedRight = LED_R_GREEN;
-        break;
-      case COUNTDOWN_STEP_RED:
-        onLedLeft = LED_L_RED;
-        onLedRight = LED_R_RED;
-        break;
+      // Left racer false start.
+      isLeftPowertoolActive = false;
+      // Red light
+      digitalWrite(treeLedPins[LED_L_RED], LED_ON);
     }
-    for (int i = 0; i < NUM_TREE_LEDS; i++)
+    if (inputStateFlags & (1 << INPUT_R_GAS))
     {
-      if ( i == onLedLeft || i == onLedRight )
-      {
-        digitalWrite(treeLedPins[i],LED_ON);
-      }
-      else
-      {
-        digitalWrite(treeLedPins[i],LED_OFF);
-      }
+      // Right racer false start.
+      isRightPowertoolActive = false;
+      // Red light
+      digitalWrite(treeLedPins[LED_R_RED], LED_ON);
     }
-    if (++countdownStep >= NUM_COUNTDOWN_STEPS)
+    // If both are false, go to RACE_STATE_READY
+    // otherwise, go to RACE_STATE_RACING.
+    if (!isLeftPowertoolActive && !isRightPowertoolActive)
     {
-      countdownStep = COUNTDOWN_STEP_STAGE;
+      SetNewState(RACE_STATE_POSTRACE);
+      return;
+    }
+    if (sysTime >= lastTime + PERIOD_400_MILLIS)
+    {
+      lastTime = sysTime;
+      switch (countdownStep)
+      {
+        case COUNTDOWN_STEP_YELLOW_1:
+          if (isLeftPowertoolActive)
+            onLedLeft = LED_L_YELLOW_2;
+          else
+            onLedLeft = LED_L_RED;
+          if (isRightPowertoolActive)
+            onLedRight = LED_R_YELLOW_2;
+          else
+            onLedRight = LED_R_RED;
+          countdownStep = COUNTDOWN_STEP_YELLOW_2;
+          break;
+        case COUNTDOWN_STEP_YELLOW_2:
+          if (isLeftPowertoolActive)
+            onLedLeft = LED_L_YELLOW_3;
+          else
+            onLedLeft = LED_L_RED;
+          if (isRightPowertoolActive)
+            onLedRight = LED_R_YELLOW_3;
+          else
+            onLedRight = LED_R_RED;
+          countdownStep = COUNTDOWN_STEP_YELLOW_3;
+          break;
+        case COUNTDOWN_STEP_YELLOW_3:
+          if (isLeftPowertoolActive)
+            onLedLeft = LED_L_GREEN;
+          else
+            onLedLeft = LED_L_RED;
+          if (isRightPowertoolActive)
+            onLedRight = LED_R_GREEN;
+          else
+            onLedRight = LED_R_RED;
+          SetNewState(RACE_STATE_RACING);
+          break;
+      }
+      for (int i = 0; i < NUM_TREE_LEDS; i++)
+      {
+        if ( i == onLedLeft || i == onLedRight )
+        {
+          digitalWrite(treeLedPins[i],LED_ON);
+        }
+        else
+        {
+          digitalWrite(treeLedPins[i],LED_OFF);
+        }
+      }
     }
   }
-  // If either false started, set corresponding isLeftPowertoolActive or
-  // isRightPowertoolActive to false.
-  // if both are false, go to RACE_STATE_READY
-  // otherwise, go to RACE_STATE_RACING.
 }
 
 void DoStateRacing()
