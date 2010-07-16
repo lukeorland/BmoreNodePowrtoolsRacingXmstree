@@ -92,27 +92,27 @@ enum
 #define POWERTOOL_OFF LOW
 
 // Input pins
-#define PIN_IN_L_GAS         3
-#define PIN_IN_L_END         4
-#define PIN_IN_R_GAS         5
-#define PIN_IN_R_END         6
-#define PIN_IN_READY         7
-#define PIN_IN_PRO_TREE      8 // No functionality yet.
+#define PIN_IN_L_GAS         14
+#define PIN_IN_L_END         15
+#define PIN_IN_R_GAS         16
+#define PIN_IN_R_END         17
+#define PIN_IN_READY         19
+#define PIN_IN_PRO_TREE      18 // No functionality yet.
 
 // Output pins
-#define PIN_OUT_L_STAGE      9
-#define PIN_OUT_L_YELLOW_1   10
-#define PIN_OUT_L_YELLOW_2   11
-#define PIN_OUT_L_YELLOW_3   12 
-#define PIN_OUT_L_GREEN      13
-#define PIN_OUT_L_RED        14
-
-#define PIN_OUT_R_STAGE      15
-#define PIN_OUT_R_YELLOW_1   16
-#define PIN_OUT_R_YELLOW_2   17
-#define PIN_OUT_R_YELLOW_3   18
-#define PIN_OUT_R_GREEN      19
-#define PIN_OUT_R_RED        20
+#define PIN_OUT_L_STAGE      12
+#define PIN_OUT_L_YELLOW_1    2
+#define PIN_OUT_L_YELLOW_2    4
+#define PIN_OUT_L_YELLOW_3    6 
+#define PIN_OUT_L_GREEN       8
+#define PIN_OUT_L_RED        10
+                               
+#define PIN_OUT_R_STAGE      13
+#define PIN_OUT_R_YELLOW_1    3
+#define PIN_OUT_R_YELLOW_2    5
+#define PIN_OUT_R_YELLOW_3    7
+#define PIN_OUT_R_GREEN       9
+#define PIN_OUT_R_RED        11
 
 #define PIN_OUT_L_POWERTOOL  21
 #define PIN_OUT_R_POWERTOOL  22
