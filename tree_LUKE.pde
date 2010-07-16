@@ -2,9 +2,6 @@
 // Luke J Orland
 // Thu Jul 15 23:00:43 EDT 2010
 
-#define LED_ON  HIGH
-#define LED_OFF LOW
-
 enum
 {
   RACE_STATE_READY,     // Red Light on, waiting for ready switch from race
@@ -63,6 +60,12 @@ enum
   LED_R_RED,
   NUM_TREE_LEDS,
 };
+
+#define LED_ON  HIGH
+#define LED_OFF LOW
+
+#define POWERTOOL_ON  HIGH
+#define POWERTOOL_OFF LOW
 
 // Input pins
 #define PIN_IN_L_GAS          3
@@ -123,14 +126,31 @@ void setup()
   pinMode(PIN_OUT_R_YELLOW_3, OUTPUT);     
   pinMode(PIN_OUT_R_GREEN, OUTPUT);     
   pinMode(PIN_OUT_R_RED, OUTPUT);     
+  pinMode(PIN_OUT_L_POWERTOOL, OUTPUT);     
+  pinMode(PIN_OUT_R_POWERTOOL, OUTPUT);     
   
-  // initialize the input pins
+  // Turn everything off.
+  for (int i = 0; i < NUM_TREE_LEDS; i++)
+  {
+    digitalWrite(treeLedPins[i],LED_OFF);
+  }
+
+  digitalWrite(PIN_OUT_L_POWERTOOL,POWERTOOL_OFF);
+  digitalWrite(PIN_OUT_R_POWERTOOL,POWERTOOL_OFF);
+
+  // Initialize the input pins.
   pinMode(PIN_IN_L_GAS, INPUT);
   pinMode(PIN_IN_L_END, INPUT);
   pinMode(PIN_IN_R_GAS, INPUT);
   pinMode(PIN_IN_R_END, INPUT);
   pinMode(PIN_IN_PRO_TREE, INPUT);
 
+  // Enable internal pullup resistors.
+  digitalWrite(PIN_IN_L_GAS,HIGH);
+  digitalWrite(PIN_IN_L_END,HIGH);
+  digitalWrite(PIN_IN_R_GAS,HIGH);
+  digitalWrite(PIN_IN_R_END,HIGH);
+  digitalWrite(PIN_IN_PRO_TREE,HIGH);
 }
 
 #define PERIOD_FOURTHENTHS_SECS (1000 * 4 / 10)
